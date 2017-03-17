@@ -14,7 +14,7 @@ JSONFILE = '/tmp/bindstats.json'
 CACHELIFE = 60
 
 parser = argparse.ArgumentParser()
-parser.add_argument("action", help="discoverzones | counter | zonecounter | zonemaintenancecounter | resolvercounter "
+parser.add_argument("action", help="discoverzones | counter | zonecounter | zonemaintenancecounter | resolvercounter | serialzones | zoneserial "
                                    "| socketcounter | incounter | outcounter")
 parser.add_argument("-z", help="zone")
 parser.add_argument("-c", help="counter name")
@@ -64,6 +64,7 @@ else:
     # Build the JSON cache
     j = {
             'zones': {},
+            'serials': {},
             'counter': {},
             'zonemaintenancecounter': {},
             'resolvercounter': {},
@@ -83,6 +84,8 @@ else:
                         for counter in zone.iterfind('./counters/*'):
                             counters[counter.tag] = counter.text
                         j['zones'][zone.findtext('./name')] = counters
+                    if zone.find('./serial') is not None:
+                        j['serials'][zone.findtext('./name')] = zone.findtext('./serial')
         for stat in root.iterfind('./bind/statistics/server/nsstat'):
             j['counter'][stat.findtext('./name')] = stat.findtext('./counter')
         for stat in root.iterfind('./bind/statistics/server/zonestat'):
@@ -159,6 +162,8 @@ else:
                             for counter in stat.iterfind('./counter'):
                                 counters[counter.attrib['name']] = counter.text
                     j['zones'][zone.attrib['name']] = counters
+                    if zone.find('./serial') is not None:
+                        j['serials'][zone.attrib['name']] = zone.findtext('./serial')
         # V2 ./bind/statistics/memory/summary/*
         for child in root.iterfind('./memory/summary/*'):
             j['memory'][child.tag] = child.text
@@ -171,6 +176,20 @@ if args.action == 'discoverzones':
     d = {'data': [{'{#ZONE}': zone} for zone in j['zones'].keys()]}
     print(json.dumps(d))
     sys.exit(0)
+
+elif args.action == 'serialzones':
+    d = {'data': [{'{#ZONE}': zone} for zone in j['serials'].keys()]}
+    print(json.dumps(d))
+    sys.exit(0)
+
+elif args.action == 'zoneserial':
+    if not (args.z):
+        print("Missing argument", file=sys.stderr)
+        print("ZBX_NOTSUPPORTED")
+        sys.exit(1)
+    if args.z in j['serials']:
+        print(j['serials'][args.z])
+        sys.exit(0)
 
 elif args.action == 'zonecounter':
     if not (args.z and args.c):
